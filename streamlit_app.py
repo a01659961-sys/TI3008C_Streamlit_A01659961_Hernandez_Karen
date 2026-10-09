@@ -4,7 +4,7 @@ import streamlit as st
 
 
 st.set_page_config(
-    page_title="Explorador de operación",
+    page_title="Tablero ejecutivo de operación",
     page_icon="📊",
     layout="wide",
 )
@@ -20,12 +20,16 @@ def cargar_datos() -> pd.DataFrame:
 
 df = cargar_datos()
 
-st.title("Explorador de operación")
-st.caption("Aplicación inicial para explorar resultados por área y región.")
+st.title("Tablero ejecutivo de operación")
+st.caption(
+    "Consulta los indicadores principales por área y región. "
+    "Usa los filtros de la barra lateral para ajustar los resultados."
+)
 
-# TODO OBLIGATORIO: escribe tu nombre completo.
-st.write("**Desarrollado por:** Escribe aquí tu nombre")
+st.write("**Desarrollado por:** Karen Hernández Mendoza")
 
+
+# ---------------- Filtros ----------------
 st.sidebar.header("Filtros")
 
 areas_disponibles = sorted(df["Área"].unique())
@@ -35,55 +39,62 @@ areas_seleccionadas = st.sidebar.multiselect(
     default=areas_disponibles,
 )
 
-df_filtrado = df[df["Área"].isin(areas_seleccionadas)].copy()
-
-st.subheader("Datos disponibles")
-st.dataframe(df_filtrado, width="stretch", hide_index=True)
-
-casos_por_fecha = (
-    df_filtrado.groupby("Fecha", as_index=False)["Casos"]
-    .sum()
-    .sort_values("Fecha")
+# Mejora: filtro adicional por región
+regiones_disponibles = sorted(df["Región"].unique())
+regiones_seleccionadas = st.sidebar.multiselect(
+    "Región",
+    options=regiones_disponibles,
+    default=regiones_disponibles,
 )
 
-fig = px.line(
-    casos_por_fecha,
-    x="Fecha",
-    y="Casos",
-    markers=True,
-    title="Casos por fecha",
-)
-st.plotly_chart(fig, width="stretch")
+df_filtrado = df[
+    df["Área"].isin(areas_seleccionadas)
+    & df["Región"].isin(regiones_seleccionadas)
+].copy()
 
-st.info(
-    "Esta es la versión inicial. Selecciona una opción de la actividad y agrega "
-    "una mejora funcional para el usuario."
-)
+if df_filtrado.empty:
+    st.warning("No hay datos para los filtros seleccionados. Elige al menos un área y una región.")
+    st.stop()
 
 
-# ================================================================
-# ZONA DE TRABAJO
-# Implementa UNA de las opciones indicadas en INSTRUCCIONES_ACTIVIDAD.md.
-# Puedes reorganizar el código existente cuando sea necesario.
-# ================================================================
+# ---------------- Indicadores ----------------
+col1, col2, col3 = st.columns(3)
+col1.metric("Casos totales", f"{int(df_filtrado['Casos'].sum()):,}")
+col2.metric("Tiempo promedio", f"{df_filtrado['Tiempo_min'].mean():.1f} min")
+col3.metric("Satisfacción promedio", f"{df_filtrado['Satisfacción'].mean():.1f}")
 
-# TODO OPCIÓN A: Tablero ejecutivo
-# - Agrega al menos dos indicadores con st.metric.
-# - Incorpora otro filtro.
-# - Organiza dos vistas mediante st.tabs.
 
-# TODO OPCIÓN B: Explorador de datos
-# - Permite cargar un CSV con st.file_uploader.
-# - Valida que el archivo tenga las columnas necesarias.
-# - Permite descargar df_filtrado con st.download_button.
+# ---------------- Vistas ----------------
+tab_resumen, tab_datos = st.tabs(["Resumen", "Datos"])
 
-# TODO OPCIÓN C: Simulador
-# - Solicita al menos dos valores al usuario.
-# - Realiza un cálculo con esos valores.
-# - Muestra un resultado y un mensaje success, warning o error.
+with tab_resumen:
+    casos_por_fecha = (
+        df_filtrado.groupby("Fecha", as_index=False)["Casos"]
+        .sum()
+        .sort_values("Fecha")
+    )
+    fig_fecha = px.line(
+        casos_por_fecha,
+        x="Fecha",
+        y="Casos",
+        markers=True,
+        title="Casos por fecha",
+    )
+    st.plotly_chart(fig_fecha, width="stretch")
 
-# TODO OPCIÓN D: Reporte interactivo
-# - Agrega una introducción que explique el propósito.
-# - Organiza resultados y metodología en pestañas o en la barra lateral.
-# - Incluye una conclusión o recomendación basada en los datos visibles.
+    casos_por_region = (
+        df_filtrado.groupby("Región", as_index=False)["Casos"]
+        .sum()
+        .sort_values("Casos", ascending=False)
+    )
+    fig_region = px.bar(
+        casos_por_region,
+        x="Región",
+        y="Casos",
+        title="Casos por región",
+    )
+    st.plotly_chart(fig_region, width="stretch")
 
+with tab_datos:
+    st.subheader("Datos filtrados")
+    st.dataframe(df_filtrado, width="stretch", hide_index=True)
